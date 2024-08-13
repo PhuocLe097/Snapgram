@@ -14,24 +14,52 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "../ui/textarea";
 import { createPostValidation } from "@/lib/validation";
 import FileUploader from "../shared/FileUploader";
+import { useCreatePost } from "@/lib/react-query/queriesAndMutations";
+import { useUserContext } from "@/context/AuthContext";
+import { useToast } from "../ui/use-toast";
+import { ToastAction } from "@radix-ui/react-toast";
+import { useNavigate } from "react-router-dom";
+import { Models } from "appwrite";
 
-const PostForm = ({ post }: { post?: any }) => {
+type ICreateProps = {
+  post?: Models.Document;
+};
+
+const PostForm = ({ post }: ICreateProps) => {
+  const { mutateAsync: createPost, isPending } = useCreatePost();
+  console.log("🚀 ~ PostForm ~ isPending:", isPending);
+  const { user } = useUserContext();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
   // 1. Define your form.
   const form = useForm<z.infer<typeof createPostValidation>>({
     resolver: zodResolver(createPostValidation),
     defaultValues: {
-      caption: "",
-      file: "",
-      location: "",
-      tags: "",
+      caption: post ? post?.caption : "",
+      file: [],
+      location: post ? post?.location : "",
+      tags: post ? post.tags.join(",") : "",
     },
   });
 
   // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof createPostValidation>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
+  async function onSubmit(values: z.infer<typeof createPostValidation>) {
     console.log(values);
+    const newPost = await createPost({
+      ...values,
+      userId: user?.id,
+    });
+
+    if (!newPost) {
+      return toast({
+        title: "Create failed",
+        description: "Please try again !!!",
+        action: <ToastAction altText="Try again">Try again</ToastAction>,
+      });
+    }
+
+    navigate("/");
   }
 
   return (
@@ -101,7 +129,7 @@ const PostForm = ({ post }: { post?: any }) => {
             </FormItem>
           )}
         />
-        <div className="flex items-center justify-end gap-4 mt-4">
+        <div className="flex items-center justify-end gap-4">
           <Button
             type="button"
             className="hover:bg-dark-4 hover:shadow-lg hover:shadow-white/15 hover:scale-105 hover:transition"
