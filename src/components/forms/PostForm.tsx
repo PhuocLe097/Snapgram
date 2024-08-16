@@ -14,7 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "../ui/textarea";
 import { createPostValidation } from "@/lib/validation";
 import FileUploader from "../shared/FileUploader";
-import { useCreatePost } from "@/lib/react-query/queriesAndMutations";
+import {
+  useCreatePost,
+  useUpdatePost,
+} from "@/lib/react-query/queriesAndMutations";
 import { useUserContext } from "@/context/AuthContext";
 import { useToast } from "../ui/use-toast";
 import { ToastAction } from "@radix-ui/react-toast";
@@ -23,11 +26,13 @@ import { Models } from "appwrite";
 
 type ICreateProps = {
   post?: Models.Document;
+  action: "Create" | "Update";
 };
 
-const PostForm = ({ post }: ICreateProps) => {
-  const { mutateAsync: createPost, isPending } = useCreatePost();
-  console.log("🚀 ~ PostForm ~ isPending:", isPending);
+const PostForm = ({ post, action }: ICreateProps) => {
+  const { mutateAsync: createPost, isPending: isCreating } = useCreatePost();
+  const { mutateAsync: updatePost, isPending: isUpdating } = useUpdatePost();
+
   const { user } = useUserContext();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -45,7 +50,25 @@ const PostForm = ({ post }: ICreateProps) => {
 
   // 2. Define a submit handler.
   async function onSubmit(values: z.infer<typeof createPostValidation>) {
-    console.log(values);
+    if (post && action === "Update") {
+      const update = await updatePost({
+        ...values,
+        postId: post.$id,
+        imageUrl: post.imageUrl,
+        imageId: post.imageId,
+      });
+
+      if (!update) {
+        return toast({
+          title: "Update failed",
+          description: "Please try again !!!",
+          action: <ToastAction altText="Try again">Try again</ToastAction>,
+        });
+      }
+
+      return navigate(`/post/${post.$id}`);
+    }
+
     const newPost = await createPost({
       ...values,
       userId: user?.id,
@@ -140,8 +163,9 @@ const PostForm = ({ post }: ICreateProps) => {
           <Button
             type="submit"
             className="bg-gradient-to-l from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-pink-500/50 hover:scale-105 hover:transition"
+            disabled={isCreating || isUpdating}
           >
-            Submit
+            {isCreating || isUpdating ? "Loading" : ""} {`${action} Post`}
           </Button>
         </div>
       </form>
